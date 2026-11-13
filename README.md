@@ -27,7 +27,7 @@ All patches are on the `fix/output-audio-channels` branch. `master` tracks upstr
 |---|---|---|---|
 | OMT Source (receive) | Always tells OBS the audio is stereo and passes two planes. A **mono** source makes OBS read the second plane past the end of the buffer (garbage audio, possible crash). Channels 3 and up are dropped. | Uses the frame's channel count and the matching OBS speaker layout: mono, stereo, 2.1, 4.0, 4.1, 5.1, 7.1. Seven channels play as 7.1 with a silent eighth; more than eight are cut to the first eight. Frames shorter than their stated channel count are skipped. | `ee34bee` |
 | OMT Output (send) | Always declares 2 channels, even when OBS is set to 5.1 or 7.1, and sends one pointer on the assumption that OBS's channel buffers sit back to back. | Sends the channel count from OBS's speaker layout (Settings > Audio > Channels). Copies each channel into one buffer before sending, under the same lock that stops the output. | `35bcae6` |
-| OMT Source color space | Choosing **BT709_P010** falls through to OBS's default color space because the BT.709 check tests `BT709` twice. | BT709_P010 uses the BT.709 color space, as BT709 does. | see `git log` |
+| OMT Source color space | Choosing **BT709_P010** falls through to OBS's default color space because the BT.709 check tests `BT709` twice. | BT709_P010 uses the BT.709 color space, as BT709 does. | `eb3f032` |
 
 Everything else (video formats, HDR PQ and HLG, tally, discovery, output settings) is the same as upstream.
 
