@@ -2,6 +2,68 @@
 
 omtplugin is a cross platform Open Media Transport plugin for OBS (https://obsproject.com)
 
+> [!IMPORTANT]
+> **This is a patched fork, not the official plugin.** The official plugin is at
+> [openmediatransport/omtplugin](https://github.com/openmediatransport/omtplugin).
+> This fork exists to carry audio fixes that upstream decided not to take.
+> It is maintained for our own production rigs, with no support and no release schedule.
+
+## About this fork
+
+### Why it exists
+
+The official plugin treats all OMT audio as stereo, in both directions. That breaks mono
+sources and drops every channel after the second on surround or multitrack feeds. We
+offered the receive fix upstream
+([openmediatransport/omtplugin#9](https://github.com/openmediatransport/omtplugin/pull/9)).
+The maintainers don't consider this a problem, so the PR was closed and the fixes live
+here instead.
+
+### What's patched
+
+All patches are on the `fix/output-audio-channels` branch. `master` tracks upstream unchanged.
+
+| Area | Upstream behaviour | Patched behaviour | Commit |
+|---|---|---|---|
+| OMT Source (receive) | Always tells OBS the audio is stereo and passes two planes. A **mono** source makes OBS read the second plane past the end of the buffer (garbage audio, possible crash). Channels 3 and up are dropped. | Uses the frame's channel count and the matching OBS speaker layout: mono, stereo, 2.1, 4.0, 4.1, 5.1, 7.1. Seven channels play as 7.1 with a silent eighth; more than eight are cut to the first eight. Frames shorter than their stated channel count are skipped. | `ee34bee` |
+| OMT Output (send) | Always declares 2 channels, even when OBS is set to 5.1 or 7.1, and sends one pointer on the assumption that OBS's channel buffers sit back to back. | Sends the channel count from OBS's speaker layout (Settings > Audio > Channels). Copies each channel into one buffer before sending, under the same lock that stops the output. | `35bcae6` |
+
+Everything else (video, HDR, tally, discovery, output settings) is the same as upstream.
+
+### Things to know
+
+- **4-channel sources** map to OBS 4.0 (front left, front right, front centre, rear centre).
+  That suits surround, but not four separate mics.
+- **Receivers may now get 6 or 8 channels.** With OBS set to 5.1 or 7.1, the OMT output sends
+  every channel. Check that your receivers can handle that, or set OBS to Stereo.
+- **Not yet tested on live rigs.** Both patches build cleanly as a native Windows plugin, but they
+  still need testing with mono, stereo, 4, 6 and 8 channel sources.
+
+### Building
+
+There are no prebuilt releases for this fork. Build from the patched branch:
+
+```
+git clone -b fix/output-audio-channels https://github.com/chillico/omtplugin
+```
+
+Then follow the build steps below. The project expects `libomtnet` to be cloned and built next to
+this repo (`../libomtnet/bin/Release/netstandard2.0/libomtnet.dll`).
+
+On Windows, the native build runs `vswhere.exe`. If the link step fails with
+`'vswhere.exe' is not recognized`, add `C:\Program Files (x86)\Microsoft Visual Studio\Installer`
+to `PATH` and build again.
+
+### Staying in sync
+
+Pull upstream into `master`, then rebase `fix/output-audio-channels` onto it. Re-test audio after
+each rebase, because both patches touch the receive and output code paths.
+
+---
+
+*The rest of this README is the upstream README, unchanged. Its Download link points to the
+official releases, which don't include these patches.*
+
 ## Download
 
 https://github.com/openmediatransport/omtplugin/releases
