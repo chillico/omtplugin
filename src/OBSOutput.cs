@@ -399,14 +399,17 @@ namespace omtplugin
                                 audioFrame.Codec = (int)OMTCodec.FPA1;
 
                                 string? name = DEFAULT_OUTPUT_NAME;
+                                OMTQuality quality = OMTQuality.Default;
                                 if (outputSettings != null)
                                 {
                                     if (!String.IsNullOrEmpty(outputSettings.Name))
                                     {
                                         name = outputSettings.Name;
                                     }
-                                }      
-                                send = new OMTSend(name, OMTQuality.Default);
+                                    quality = outputSettings.Quality;
+                                }
+                                OMTLogging.Write("OMTOutputQuality: " + quality.ToString(), "OMTOutput");
+                                send = new OMTSend(name, quality);
 
                                 OBS.obs_output_begin_data_capture(this.output, 0);
                                 return true;

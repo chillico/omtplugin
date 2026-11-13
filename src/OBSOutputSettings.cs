@@ -14,6 +14,7 @@ namespace omtplugin
         private IntPtr configPath = IntPtr.Zero;
         private string? name = null;
         private bool enabled = false;
+        private OMTQuality quality = OMTQuality.Default;
 
         public OBSOutputSettings() 
             : base("omtoutputsettings", "OMT Output Settings", OBS.obs_icon_type.OBS_ICON_TYPE_CAMERA, 
@@ -41,6 +42,7 @@ namespace omtplugin
 
         public string? Name { get { return name; } }
         public bool Enabled {  get { return enabled; } }
+        public OMTQuality Quality { get { return quality; } }
 
         protected override void GetDefaults(nint settings)
         {
@@ -82,6 +84,9 @@ namespace omtplugin
             if (settings != IntPtr.Zero)
             {
                 enabled = OBS.obs_data_get_bool(settings, "enabledProperty");
+                //A missing key reads as 0, which is OMTQuality.Default, so older configs keep today's behaviour
+                OMTQuality q = (OMTQuality)OBS.obs_data_get_int(settings, "qualityProperty");
+                quality = Enum.IsDefined(q) ? q : OMTQuality.Default;
                 IntPtr n = OBS.obs_data_get_string(settings, "nameProperty");
                 if (n != IntPtr.Zero)
                 {

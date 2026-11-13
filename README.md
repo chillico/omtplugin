@@ -30,8 +30,9 @@ All patches are on the `fix/output-audio-channels` branch. `master` tracks upstr
 | OMT Source color space | Choosing **BT709_P010** falls through to OBS's default color space because the BT.709 check tests `BT709` twice. | BT709_P010 uses the BT.709 color space, as BT709 does. | `eb3f032` |
 | OMT Source address | The Source box is a fixed list of sources that discovery has found. A source on another subnet, or one discovery hasn't listed yet, can't be picked. | The Source box is editable: pick from the list or type an address. A typed address connects 750 ms after you stop typing, so the receiver isn't rebuilt on every keystroke. Leading and trailing spaces are trimmed. | `0d47cc5` |
 | OMT Source, clearing the source | Choosing the blank entry disposes the receiver but keeps using it afterwards. | The disposed receiver is dropped, so clearing the source is safe. | `0d47cc5` |
+| OMT Output quality | Always sends at OMT's Default quality. Tools > OMT Output Settings has only Enabled and Name. | OMT Output Settings has a **Quality** choice: Default, Low, Medium or High. It's saved with the other output settings, and configs saved before this change keep Default. Changing it restarts the output. | see `git log` |
 
-Everything else (video formats, HDR PQ and HLG, tally, discovery, output settings) is the same as upstream.
+Everything else (video formats, HDR PQ and HLG, tally, discovery) is the same as upstream.
 
 ### Things to know
 
