@@ -53,12 +53,20 @@ namespace omtplugin
         private IntPtr silence = IntPtr.Zero;
         private int silenceLength = 0;
 
+        //The Source box is editable, and OBS sends an update on every keystroke.
+        //Wait for typing to pause before connecting to a new address.
+        private const int AddressSettleMs = 750;
+        private Timer? addressTimer;
+        private bool initialized = false;
+        private bool disposing = false;
+
         public OBSReceiveInstance(IntPtr source, IntPtr settings) : base(source,settings)
         {
             this.receiver = null;
             this.thread = null;
             this.threadRunning = false;
             UpdateSettings(settings);
+            initialized = true;
         }
 
         private void StartThread()
@@ -97,6 +105,7 @@ namespace omtplugin
                 if (receiver != null)
                 {
                     receiver.Dispose();
+                    receiver = null;
                 }
                 if (!String.IsNullOrEmpty(this.address))
                 {
@@ -123,6 +132,7 @@ namespace omtplugin
             {
                 lock (lockSync)
                 {
+                    if (disposing) return;
                     if (receiver != null)
                     {
                         if (receiver.Address != this.address || activeColorSpace != displayColorSpace)
@@ -215,7 +225,7 @@ namespace omtplugin
                 IntPtr properties = OBS.obs_properties_create();
                 if (properties != IntPtr.Zero)
                 {
-                    IntPtr sourceProperty = OBS.obs_properties_add_list(properties, "sourceProperty", "Source", OBS.obs_combo_type.OBS_COMBO_TYPE_LIST, OBS.obs_combo_format.OBS_COMBO_FORMAT_STRING);
+                    IntPtr sourceProperty = OBS.obs_properties_add_list(properties, "sourceProperty", "Source", OBS.obs_combo_type.OBS_COMBO_TYPE_EDITABLE, OBS.obs_combo_format.OBS_COMBO_FORMAT_STRING);
                     if (sourceProperty != IntPtr.Zero)
                     {
                         OBS.obs_property_list_add_string(sourceProperty, "", "");
@@ -263,7 +273,7 @@ namespace omtplugin
                     IntPtr pSource = OBS.obs_data_get_string(settings, "sourceProperty");
                     if (pSource != IntPtr.Zero)
                     {
-                        string? source = Marshal.PtrToStringUTF8(pSource);
+                        string? source = Marshal.PtrToStringUTF8(pSource)?.Trim();
                         if (!String.IsNullOrEmpty(source))
                         {
                             this.address = source;
@@ -281,9 +291,28 @@ namespace omtplugin
                     this.suggestedQuality = (OMTQuality)q;
                     this.displayColorSpace = (OBS.DisplayColorSpace)OBS.obs_data_get_int(settings, "csProperty");
                     this.previewMode = OBS.obs_data_get_bool(settings, "previewProperty");
-                    
+
                 }
-                UpdateReceiver();
+
+                bool addressChanged;
+                lock (lockSync)
+                {
+                    addressChanged = receiver != null ? receiver.Address != this.address : !String.IsNullOrEmpty(this.address);
+                }
+                if (initialized && addressChanged)
+                {
+                    //Connect once typing pauses. Each new keystroke pushes this back.
+                    lock (lockSync)
+                    {
+                        if (disposing) return;
+                        addressTimer ??= new Timer(_ => UpdateReceiver());
+                        addressTimer.Change(AddressSettleMs, Timeout.Infinite);
+                    }
+                }
+                else
+                {
+                    UpdateReceiver();
+                }
             }
             catch (Exception ex)
             {
@@ -456,6 +485,12 @@ namespace omtplugin
 
         protected override void DisposeInternal()
         {
+            lock (lockSync)
+            {
+                disposing = true;
+                addressTimer?.Dispose();
+                addressTimer = null;
+            }
             StopThread();
             if (silence != IntPtr.Zero)
             {
