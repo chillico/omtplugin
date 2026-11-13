@@ -103,6 +103,9 @@ namespace omtplugin
         private int strideHeight = 0;
         private OBS.video_format sourceFormat = 0;
         private IntPtr tempData = IntPtr.Zero;
+        private int audioChannels = 2;
+        private IntPtr audioBuffer = IntPtr.Zero;
+        private int audioBufferLength = 0;
         public const string DEFAULT_OUTPUT_NAME = "OBS Output";
 
         public OBSOutput(IntPtr output, IntPtr settings)
@@ -389,7 +392,9 @@ namespace omtplugin
                                     return false;
                                 }
 
-                                audioFrame.Channels = 2;
+                                audioChannels = GetChannelCount(info.speakers);
+                                OMTLogging.Write("OMTOutputAudio: " + info.speakers.ToString() + " " + audioChannels + " channels " + info.samples_per_sec + " Hz", "OMTOutput");
+                                audioFrame.Channels = audioChannels;
                                 audioFrame.SampleRate = (int)info.samples_per_sec;
                                 audioFrame.Codec = (int)OMTCodec.FPA1;
 
@@ -446,6 +451,12 @@ namespace omtplugin
                         Marshal.FreeHGlobal(tempData);
                         tempData = IntPtr.Zero;
                     }
+                    if (audioBuffer != IntPtr.Zero)
+                    {
+                        Marshal.FreeHGlobal(audioBuffer);
+                        audioBuffer = IntPtr.Zero;
+                        audioBufferLength = 0;
+                    }
                 }
             }
             catch (Exception ex)
@@ -491,22 +502,63 @@ namespace omtplugin
         {
             if (frames.data != null)
             {
-                if (frames.data[0] != IntPtr.Zero)
+                if (frames.data[0] != IntPtr.Zero && frames.frames > 0)
                 {
-                    audioFrame.Data = frames.data[0];
-                    audioFrame.Timestamp = (Int64)frames.timestamp / 100;
-                    audioFrame.SamplesPerChannel = (int)frames.frames;
-                    audioFrame.DataLength = audioFrame.SamplesPerChannel * 4 * 2;
                     lock (lockSync)
                     {
                         if (send != null)
                         {
+                            //OBS gives one pointer per plane; OMT wants the planes back to back.
+                            //Copy them rather than assume OBS's mix buffers are contiguous.
+                            int samples = (int)frames.frames;
+                            int planeBytes = samples * 4;
+                            int len = planeBytes * audioChannels;
+                            if (audioBufferLength < len)
+                            {
+                                if (audioBuffer != IntPtr.Zero) Marshal.FreeHGlobal(audioBuffer);
+                                audioBuffer = Marshal.AllocHGlobal(len);
+                                audioBufferLength = len;
+                            }
+                            unsafe
+                            {
+                                for (int i = 0; i < audioChannels; i++)
+                                {
+                                    IntPtr dst = audioBuffer + (i * planeBytes);
+                                    IntPtr src = i < frames.data.Length ? frames.data[i] : IntPtr.Zero;
+                                    if (src != IntPtr.Zero)
+                                        Buffer.MemoryCopy((void*)src, (void*)dst, planeBytes, planeBytes);
+                                    else
+                                        new Span<byte>((void*)dst, planeBytes).Clear();
+                                }
+                            }
+                            audioFrame.Data = audioBuffer;
+                            audioFrame.Timestamp = (Int64)frames.timestamp / 100;
+                            audioFrame.SamplesPerChannel = samples;
+                            audioFrame.DataLength = len;
                             send.Send(audioFrame);
                         }
                     }
                 }
             }
         }
+        /// <summary>
+        /// Channel count for an OBS speaker layout. Unknown falls back to stereo, as OBS does.
+        /// </summary>
+        private static int GetChannelCount(OBS.speaker_layout speakers)
+        {
+            switch (speakers)
+            {
+                case OBS.speaker_layout.SPEAKERS_MONO: return 1;
+                case OBS.speaker_layout.SPEAKERS_STEREO: return 2;
+                case OBS.speaker_layout.SPEAKERS_2POINT1: return 3;
+                case OBS.speaker_layout.SPEAKERS_4POINT0: return 4;
+                case OBS.speaker_layout.SPEAKERS_4POINT1: return 5;
+                case OBS.speaker_layout.SPEAKERS_5POINT1: return 6;
+                case OBS.speaker_layout.SPEAKERS_7POINT1: return 8;
+                default: return 2;
+            }
+        }
+
         private static void RawVideo(IntPtr data, ref OBS.video_data frame)
         {
             try
