@@ -319,7 +319,7 @@ namespace omtplugin
                 } else if (activeColorSpace == OBS.DisplayColorSpace.BT601)
                 {
                     cs = OBS.video_colorspace.VIDEO_CS_601;
-                } else if (activeColorSpace == OBS.DisplayColorSpace.BT709 || activeColorSpace == OBS.DisplayColorSpace.BT709)
+                } else if (activeColorSpace == OBS.DisplayColorSpace.BT709 || activeColorSpace == OBS.DisplayColorSpace.BT709_P010)
                 {
                     cs = OBS.video_colorspace.VIDEO_CS_709;
                 }
